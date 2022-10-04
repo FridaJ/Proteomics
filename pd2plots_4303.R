@@ -41,10 +41,6 @@ if (length(needs_fix) > 0) {
   print("Manually change the gene names of entries with accession number:")
   print(my_data$Accession[needs_fix])
 }
-# Add relevant filter for GO-terms to use in plots
-#go_terms <- "GO:0009617|GO:0009615|GO:0042742|GO:0050830|GO:0051607|GO:0019730|GO:0043312|GO:0090024|GO:0006954|GO:0006955|GO:0002682|GO:0045087|GO:0006953|GO:0019886"
-#sign_genes_go <- my_data %>% 
-#              filter(abs(my_data$log2FC_mean)>log2(1.2) & str_detect(my_data$`Gene ontology (biological process)`, go_terms))
 
 # Select expression data columns
 expr_data <- cbind(my_data[, 9:25], my_data[, 27:55]) # column 29 is the special sample to exclude
@@ -61,6 +57,7 @@ indices_gr2_wo23 <- indices_gr2[-3] # removed sample 23, the 3rd entry
 my_data$non_missing_gr1 <- apply(expr_data, 1, function(x) sum(!is.na(x[indices_gr1])))
 my_data$non_missing_gr2 <- apply(expr_data, 1, function(x) sum(!is.na(x[indices_gr2])))
 my_data$non_missing_gr2_wo23 <- apply(expr_data, 1, function(x) sum(!is.na(x[indices_gr2_wo23])))
+                                      
 # Which proteins have more than 70% missing data?
 too_few <- grep(TRUE, (my_data$non_missing_gr1 < 0.7*length(indices_gr1))|(my_data$non_missing_gr2 < 0.7*length(indices_gr2))) 
 too_few_wo23 <- grep(TRUE, (my_data$non_missing_gr1 < 0.7*length(indices_gr1))|(my_data$non_missing_gr2_wo23 < 0.7*length(indices_gr2_wo23))) 
@@ -70,9 +67,9 @@ setdiff(too_few, too_few_wo23) # No 3122 cannot be used with all samples, but is
 expr_data_wo23 <- expr_data_wo23[-too_few_wo23, ]
 expr_data <- expr_data[-too_few_wo23, ] # Include protein 3122 to get same df rows
 
-### Use expr_data_wo23 below:
+### Use only expr_data_wo23 below:
 
-# Group means, medians and fold changes    
+# Group means and fold changes    
 my_data <- my_data[, -(which(colnames(my_data) == "23 AB"))]
 my_data_clean <- my_data[-too_few_wo23, ]
 my_data_clean$mean_gr1 <- rowMeans(expr_data_wo23[, indices_gr1], na.rm = TRUE)
@@ -82,12 +79,7 @@ my_data_clean$FC_2vs1 <- my_data_clean$mean_gr2/my_data_clean$mean_gr1
 my_data_clean$log2FC <- log2(my_data_clean$FC_2vs1)
 my_data_clean$abs_log2_FC <- abs(my_data_clean$log2FC)
 
-#my_data$median_AKI0 <- rowMedians(as.matrix(expr_data[, c(group_labels == "AKI0")]), na.rm = TRUE)
-#my_data$median_AKI23 <- rowMedians(as.matrix(expr_data[, c(group_labels == "AKI23")]), na.rm = TRUE)
-#my_data$FC_23_vs_0_med <- my_data$median_AKI23/my_data$median_AKI0
-#my_data$log2FC_median <- log2(my_data$FC_23_vs_0_med)
-
-#Plot data before t-test to see distributions, looks ok
+# Plot data before t-test to see distributions, looks ok
 hist(log2(t(expr_data[,indices_gr1])))
 hist(log2(t(expr_data[,indices_gr2_wo23])))
 
@@ -113,7 +105,7 @@ legend("topright","fdr < 0.05", fill="red")
 fdr_list <- which((my_data_clean$fdr <= 0.05) == TRUE)
 fdr <- length(fdr_list)
 # Dataframe with proteins fdr ≤ 0.05:
-#my_data_fdr <- my_data_clean[fdr_list, ]
+my_data_fdr <- my_data_clean[fdr_list, ]
 
 
 
@@ -156,7 +148,7 @@ expr_data_wo23 %>%
 # Labeling top 15 over expressed and under expressed, respectively
 # Sort on absolute value of log2FC and use the top 30 entries. 
 
-#Using mean values:
+#Using mean values, fdr instead of p, cutoff 0.05, and FC with cutoff 3.0:
 
 EnhancedVolcano(my_data_clean,                 
                 x = 'log2FC', 
@@ -167,11 +159,11 @@ EnhancedVolcano(my_data_clean,
                 #  as.data.frame %>% pull(`Gene Symbol`),
                 xlim = c(-4, 4), 
                 ylim= c(0, 6.5), 
-                pCutoff = 0.01,
+                pCutoff = 0.05,
                 FCcutoff = log2(3.0),
                 labSize = 4, 
                 title="Significant genes AA vs AB", 
-                subtitle = "fdr < 0.05, FC > 1.5",
+                subtitle = "fdr < 0.05, FC > 3.0",
                 col = c("grey30", "grey30", "grey30", "#6887E5"), #red2 for labeled points, #6887E5 lightblue
                 legendPosition = NULL,
                 caption = NULL,
@@ -192,19 +184,19 @@ EnhancedVolcano(my_data_clean,
                 x = 'log2FC', 
                 y = 'fdr', 
                 lab = my_data_clean$`Gene Symbol`,
-                selectLab = signprot1_5  %>% pull(`Gene Symbol`),
+                #selectLab = signprot1_5  %>% pull(`Gene Symbol`),
                 xlim = c(-3, 3), 
                 ylim= c(0, 6.5), 
                 pCutoff = 0.05,
                 FCcutoff = log2(1.5),
                 labSize = 2.8, 
-                title = NULL, 
-                subtitle = NULL, 
+                title = "Significant genes AA vs AB", 
+                subtitle = "fdr < 0.05, FC > 1.5", 
                 col = c("grey30", "grey30", "grey30", "#6887E5"), #red 2 for labeled points, #6887E5 lightblue
                 legendPosition = NULL,
                 caption = NULL,
                 axisLabSize = 11,
-                drawConnectors = TRUE,
+                drawConnectors = FALSE, # Too many labels for connectors
                 widthConnectors = 0.3,
                 arrowheads = FALSE,
                 maxoverlapsConnectors = Inf) +  
@@ -215,38 +207,10 @@ EnhancedVolcano(my_data_clean,
   #geom_point(data = my_data_clean %>% filter(Accession %in% all_srav_prot$`T: Accession`), aes(x = log2FC_high_vs_low, -log10(p)), col="red2", alpha=1/1.2)
 
 
-EnhancedVolcano(my_data,                 
-                x = 'log2FC_median', 
-                y = 'p', 
-                lab = my_data$`Gene Symbol`,
-                #lab = NA,
-                #selectLab = order(sign_genes_go$log2FC_mean, decreasing = TRUE) %>% pull(`Gene Symbol`),
-                xlim = c(-4, 4), 
-                ylim= c(0, 6.5), 
-                pCutoff = 0.05,
-                FCcutoff = log2(1.2),
-                labSize = 2.8, 
-                title = "Significant genes AKI23 vs AKI0, median values", 
-                subtitle = "p < 0.05, FC > 1.2", 
-                col = c("grey30", "grey30", "grey30", "#6887E5"), #red 2 for labeled points, #6887E5 lightblue
-                legendPosition = NULL,
-                caption = NULL,
-                axisLabSize = 11,
-                drawConnectors = TRUE,
-                widthConnectors = 0.3,
-                arrowheads = FALSE,
-                maxoverlapsConnectors = Inf) +  
-  guides(color = "none", size = "none") +
-  scale_x_continuous(breaks=seq(-4, 4, by=0.5)) +
-  scale_y_continuous(breaks=seq(0, 7)) +
-  theme_classic() +
-  geom_point(data = sign_prot_median, aes(x = log2(FC_23_vs_0_med), -log10(p)), col="red2", alpha=1/1.2)
-
 
 #####----- HEATMAP -----#####
 
 
-# What are breaks? /FJ
 inner_breaks <-seq(-2, 2, length=98)
 my_breaks <- c(-3, inner_breaks, 3)
 my_col <- colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(length(inner_breaks))
@@ -255,7 +219,10 @@ my_col <- c(my_col[1], my_col, my_col[length(my_col)])
 #go_term <- "GO:0043312|GO:0045087|GO:0006954"
 #go_title <- "GO neutrofile degran, innate immune resp, inflam response, fdr<0.05"
 
-# Select the most significant genes for the heatmap (p<0.05, log2FC>1.2)
+# Select the most significant genes for the heatmap (fdr<0.05, abs(log2FC)>abs(log2(1.8)))
+# Trial and error gave that the best visual representation was given with FC=1.8
+# Found out that heatmaps with 131 or less rows get borders around each "box". 132 or more gives heatmaps with no borders, 
+# even if borders is set to TRUE.
 
 #Using mean value difference:
 my_data_clean %>% 
@@ -282,7 +249,8 @@ my_data_clean %>%
            color = my_col
            )          
 
-# Save dataframe as xlsx for enrichment analysis:
+
+##### Save dataframe as xlsx for enrichment analysis:
 
 xlsx::write.xlsx(my_data_clean, file = "my_data_clean.xlsx")
 
