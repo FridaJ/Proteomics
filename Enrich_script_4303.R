@@ -2,7 +2,7 @@
 
 if (!requireNamespace("BiocManager", quietly = TRUE))
   + install.packages("BiocManager")
-#Micromanage::install() #To install latest version if multiple versions are installed
+#BiocManager::install() #To install latest version if multiple versions are installed
 BiocManager::install(c("tidyr", "xlsx", "ReactomePA", "clusterProfiler", "readxl", "dplyr", "org.Hs.eg.db", "ggplots2", "forcats", "enrichplot"))
 
 library(ReactomePA) 
@@ -21,6 +21,7 @@ setwd("/Users/xjacfr/Documents/Proteomics/4303/")
 
 my_data_clean <- read_xlsx("my_data_clean.xlsx")
 my_data_clean <- my_data_clean[, -1]
+row.names(my_data_clean) <- my_data_clean$Accession # For getting info from specific rows later
 
 sig_data <- my_data_clean %>% dplyr::filter(fdr<0.05) 
 #sig_data_uni <- dplyr::select('Accession') %>% na.omit
@@ -32,6 +33,9 @@ sig_data_ids <- bitr(sig_data[[1]], fromType="UNIPROT", toType=c("ENTREZID", "EN
 # Warning message:
 # In bitr(sig_data[[1]], fromType = "UNIPROT", toType = c("ENTREZID",  :
 # 1.4% of input gene IDs are fail to map...
+
+# Set row names to Uniprot IDs to easily map them to Entrez IDs:
+#row.names(sig_data_ids) <- sig_data_ids$UNIPROT
 
 # Remove duplicates of Uniprot
 sig_data_ids <- sig_data_ids[!duplicated(sig_data_ids$UNIPROT),]
@@ -113,36 +117,11 @@ colnames(genesets_mf)[1] <- "GO-term"
 colnames(genesets_mf)[2] <- "GeneID"
 genesets_mf <- genesets_mf %>% separate_rows(GeneID, sep = "/") # One gene on each row
 
-#xlsx::write.xlsx(genesets_mf, file = "ego_mf.xlsx")
+# Add proteomics data for each gene
 
-# Add proteomics data for each gene (Not working yet)
+peptide_info_etc <- dplyr::select(my_data_clean, 1:6, GeneID="Gene Symbol", pwelch, fdr, abs_log2_FC) %>% na.omit # There is one NA in peptide_info but not in genesets_mf. (Nr 1641)
+all_info <- as.data.frame(matrix(NA, nrow = 3862, ncol = 11))
 
-Genes_GOterms_mf <- as.data.frame(matrix(NA, nrow = 3862, ncol = 5))
-colnames(Genes_GOterms_mf) =c("GO-term", "GeneID", "Peptides", "PSMs", "Unique peptides")
-Genes_GOterms_mf$`GO-term` <- genesets_mf$`GO-term`
-Genes_GOterms_mf$GeneID <- genesets_mf$GeneID
+all_info <- inner_join(genesets_mf, peptide_info_etc, by = 'GeneID')
 
-gene_row <- integer(1)
-symb_row <- integer(1)
-
-for (gene in Genes_GOterms_mf$GeneID) {
-  for (symb in my_data_clean$`Gene Symbol`) {
-    #print("x")
-    if (Genes_GOterms_mf$GeneID[gene_row] == (my_data_clean$`Gene Symbol`[symb_row])) {
-      Genes_GOterms_mf$Peptides[gene_row] <- my_data_clean$`# Peptides`[symb_row]
-      Genes_GOterms_mf$PSMs[gene_row] <- my_data_clean$`# PSMs`[symb_row]
-      Genes_GOterms_mf$`Unique peptides`[gene_row] <- my_data_clean$`# Unique Peptides`[symb_row]
-      symb_row = symb_row + 1
-      gene_row = gene_row +1
-      break
-    } else {
-        symb_row = symb_row +1
-      }
-  }
-}
-# Problem, för långsamt att leta igenom två långa listor i nestade loopar!
-  
-Genes_GOterms_mf <- my_data_clean[i,2] %>% select(`# Peptides`, `# PSMs`, `# Unique Peptides`)
-
-
-
+xlsx::write.xlsx(all_info, file = "enrich_mf.xlsx")
